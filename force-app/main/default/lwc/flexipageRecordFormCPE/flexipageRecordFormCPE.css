@@ -1,0 +1,175 @@
+/* Custom Property Editor Styles */
+.slds-form {
+  background-color: var(--lwc-colorBackgroundAlt);
+}
+
+.slds-box {
+  background-color: var(--lwc-colorBackground);
+  border: 1px solid var(--lwc-colorBorder);
+}
+
+/* Modal styles */
+.slds-modal__content {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Large modal for Excluded Fields */
+.slds-modal_large {
+  width: 90%;
+  max-width: 70rem;
+  margin: 0 auto;
+}
+
+/* Ensure the modal backdrop covers the entire viewport */
+.slds-backdrop_open {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 9000;
+}
+
+/* Modal positioning */
+.slds-modal {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 9001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Modal container styling */
+.slds-modal__container {
+  position: relative;
+  background-color: white;
+  border-radius: 0.25rem;
+  box-shadow: 0 2px 3px 0 rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+/* Modal header styling */
+.slds-modal__header {
+  position: relative;
+  border-bottom: 1px solid var(--lwc-colorBorder);
+  border-radius: 0.25rem 0.25rem 0 0;
+  padding: 1rem 2rem;
+  background-color: var(--lwc-colorBackgroundAlt);
+}
+
+/* Modal close button positioning */
+.slds-modal__close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+/* Modal footer styling */
+.slds-modal__footer {
+  border-top: 1px solid var(--lwc-colorBorder);
+  border-radius: 0 0 0.25rem 0.25rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--lwc-colorBackgroundAlt);
+  text-align: right;
+}
+
+/* Button spacing in modal footer */
+.slds-modal__footer lightning-button {
+  margin-left: 0.5rem;
+}
+
+/* Loading spinner positioning */
+lightning-spinner {
+  position: relative;
+}
+
+/* Advanced settings icon animation */
+lightning-button-icon {
+  transition: transform 0.2s ease;
+}
+
+/* Field option styles */
+lightning-dual-listbox {
+  min-height: 200px;
+}
+
+/* Improve dual listbox appearance in modal */
+.slds-modal__content lightning-dual-listbox {
+  --slds-c-dualistbox-height: 400px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Excluded fields count text */
+.slds-text-body_small {
+  color: var(--lwc-colorTextLabel);
+  font-size: 0.8125rem;
+}
+
+/* Default values modal inputs */
+.slds-modal__content lightning-input {
+  margin-bottom: var(--lwc-spacingSmall);
+}
+
+/* Combobox dropdown max height */
+lightning-combobox .slds-dropdown {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Accordion styles */
+.slds-section {
+  border: 1px solid var(--lwc-colorBorder);
+  border-radius: 0.25rem;
+  margin-bottom: 0;
+}
+
+.slds-section__title {
+  padding: 0;
+  border: 0;
+}
+
+.slds-section__title-action {
+  padding: 0.75rem 1rem;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+}
+
+.slds-section__title-action:hover {
+  background-color: var(--lwc-colorBackgroundRowHover);
+}
+
+.slds-section__title-action-icon {
+  margin-right: 0.5rem;
+  transition: transform 0.2s ease;
+}
+
+.slds-section__content {
+  padding: 0 1rem 1rem 1rem;
+  border-top: 1px solid var(--lwc-colorBorder);
+}
+
+.slds-section__content[aria-hidden="true"] {
+  display: none;
+}
+
+/* Default values modal specific styles */
+.slds-modal__content .slds-form-element {
+  margin-bottom: 0;
+}
+
+.slds-modal__content .slds-form-element__label {
+  font-weight: 600;
+  color: var(--lwc-colorTextLabel);
+}
