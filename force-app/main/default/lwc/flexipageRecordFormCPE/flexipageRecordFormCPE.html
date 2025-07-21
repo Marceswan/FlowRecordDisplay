@@ -202,9 +202,9 @@
           </button>
           <h2 class="slds-modal__title">Configure Default Values</h2>
         </header>
-        <div class="slds-modal__content slds-p-around_medium">
+        <div class="slds-modal__content">
           <!-- Record Variable Selector -->
-          <div class="slds-m-bottom_medium">
+          <div class="slds-m-bottom_small">
             <c-fsc_flow-combobox
               name="recordVariable"
               label="Select Record Variable"
@@ -242,7 +242,7 @@
               id="individual-fields-section"
             >
               <template for:each={defaultValueFields} for:item="field">
-                <div key={field.value} class="slds-m-bottom_medium">
+                <div key={field.value} class="slds-m-bottom_small">
                   <div class="slds-form-element">
                     <label class="slds-form-element__label" for={field.value}>
                       {field.label}
