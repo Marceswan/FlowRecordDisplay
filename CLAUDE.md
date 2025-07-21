@@ -168,10 +168,10 @@ dispatchConfigurationChange(name, value) {
 ```javascript
 handleFieldSelection(event) {
     const selectedField = event.detail.value;
-    
+
     // Dispatch the change immediately
     this.dispatchConfigurationChange('selectedField', selectedField);
-    
+
     // Load dependent options
     this.loadDependentOptions(selectedField);
 }
@@ -204,12 +204,14 @@ async loadDependentOptions(fieldName) {
 This section documents the migration from Tooling API to Metadata API for FlexiPage metadata retrieval. The migration aims to improve performance, eliminate API callout limits, and simplify the architecture.
 
 ### Current State (Tooling API)
+
 - **Service Class**: `FlexiPageToolingService.cls`
 - **Authentication**: Named Credential `Tooling_API_Credential`
 - **Method**: HTTP callouts to `/services/data/v60.0/tooling/query/`
 - **Limitations**: API limits, network latency, requires Named Credential setup
 
 ### Target State (Metadata API)
+
 - **Service Class**: `FlexiPageMetadataService.cls` (new)
 - **Authentication**: Direct Apex access (no Named Credential needed)
 - **Method**: `Metadata.Operations.retrieve()`
@@ -218,6 +220,7 @@ This section documents the migration from Tooling API to Metadata API for FlexiP
 ### Migration Phases
 
 #### Phase 1: Create New Service (Week 1)
+
 1. Create `FlexiPageMetadataService.cls` with Metadata API implementation
 2. Implement core methods:
    - `getFlexiPageMetadata()` using Metadata.Operations
@@ -225,24 +228,28 @@ This section documents the migration from Tooling API to Metadata API for FlexiP
    - Response formatting to match existing structure
 
 #### Phase 2: Testing Infrastructure (Week 1)
+
 1. Create `FlexiPageMetadataServiceTest.cls` with 90%+ coverage
 2. Create comparison tests between old and new implementations
 3. Performance benchmarking tests
 4. Edge case testing (missing metadata, permissions)
 
 #### Phase 3: LWC Compatibility Layer (Week 2)
+
 1. Add feature toggle in Custom Settings/Metadata
 2. Update `flexipageRecordForm.js` to support both APIs
 3. Create adapter pattern for response differences
 4. Test with various FlexiPage configurations
 
 #### Phase 4: Gradual Migration (Week 2)
+
 1. Enable new API in sandbox environments
 2. A/B testing with selected users
 3. Monitor performance metrics
 4. Address any compatibility issues
 
 #### Phase 5: Cleanup (Week 3)
+
 1. Remove Tooling API implementation
 2. Delete Named Credential
 3. Update all documentation
@@ -251,24 +258,30 @@ This section documents the migration from Tooling API to Metadata API for FlexiP
 ### Technical Implementation Details
 
 #### New Metadata API Service Structure
+
 ```apex
 public class FlexiPageMetadataService {
-    public static String getFlexiPageMetadata(String developerName) {
-        Metadata.DeployContainer container = new Metadata.DeployContainer();
-        List<String> flexiPageNames = new List<String>{'FlexiPage.' + developerName};
-        
-        List<Metadata.Metadata> components = 
-            Metadata.Operations.retrieve(Metadata.MetadataType.FlexiPage, flexiPageNames);
-        
-        // Process and return metadata
-    }
+  public static String getFlexiPageMetadata(String developerName) {
+    Metadata.DeployContainer container = new Metadata.DeployContainer();
+    List<String> flexiPageNames = new List<String>{
+      'FlexiPage.' + developerName
+    };
+
+    List<Metadata.Metadata> components = Metadata.Operations.retrieve(
+      Metadata.MetadataType.FlexiPage,
+      flexiPageNames
+    );
+
+    // Process and return metadata
+  }
 }
 ```
 
 #### Feature Toggle Implementation
+
 ```apex
 public static Boolean useMetadataAPI() {
-    FlexiPage_Migration_Settings__c settings = 
+    FlexiPage_Migration_Settings__c settings =
         FlexiPage_Migration_Settings__c.getOrgDefaults();
     return settings.Use_Metadata_API__c ?? false;
 }
@@ -302,6 +315,7 @@ public static Boolean useMetadataAPI() {
 ### Project Memory Reference
 
 Knowledge Graph Entities:
+
 - **Project**: FlexiPage Tooling to Metadata API Migration
 - **Current Implementation**: Tooling API approach details
 - **Target Implementation**: Metadata API approach details
