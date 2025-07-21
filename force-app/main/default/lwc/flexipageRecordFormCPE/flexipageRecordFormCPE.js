@@ -1,5 +1,6 @@
 import { LightningElement, api, track } from "lwc";
 import getAvailableFlexiPages from "@salesforce/apex/FlexiPageMetadataService.getAvailableFlexiPages";
+import getFlexiPageFields from "@salesforce/apex/FlexiPageMetadataService.getFlexiPageFields";
 import getObjectFields from "@salesforce/apex/FlexiPageToolingService.getObjectFields";
 import getAllSObjects from "@salesforce/apex/FlexiPageToolingService.getAllSObjects";
 
@@ -24,9 +25,7 @@ export default class FlexipageRecordFormCPE extends LightningElement {
   @track tempExcludedFields = [];
   @track showIndividualFields = false;
   @track selectedRecordVariable = "";
-  @track recordVariableOptions = [];
-  @track recordIdVariableOptions = [];
-  @track selectedRecordIdVariable = "";
+  @track flexiPageFields = []; // Fields from the selected FlexiPage
 
   // Configuration values
   objectApiName;
@@ -46,10 +45,6 @@ export default class FlexipageRecordFormCPE extends LightningElement {
   // Connected callback to load sObjects when component is initialized
   connectedCallback() {
     this.loadAllSObjects();
-    // Load Flow variables if context is available
-    if (this._builderContext) {
-      this.loadFlowVariables();
-    }
   }
 
   // Getters and setters for Flow Builder interfaces
@@ -59,7 +54,6 @@ export default class FlexipageRecordFormCPE extends LightningElement {
   }
   set builderContext(context) {
     this._builderContext = context || {};
-    this.loadObjectMetadata();
   }
 
   @api
@@ -154,20 +148,6 @@ export default class FlexipageRecordFormCPE extends LightningElement {
           break;
         case "recordId":
           this.recordId = variable.value;
-          // Check if it's a Flow variable (no {!} syntax in CPEs)
-          if (
-            variable.value &&
-            this._builderContext &&
-            this._builderContext.variables
-          ) {
-            // Check if the value matches a variable name
-            const matchingVariable = this._builderContext.variables.find(
-              (v) => v.name === variable.value
-            );
-            if (matchingVariable) {
-              this.selectedRecordIdVariable = variable.value;
-            }
-          }
           break;
         case "isReadOnly":
           this.isReadOnly =
@@ -256,9 +236,6 @@ export default class FlexipageRecordFormCPE extends LightningElement {
 
     // Load FlexiPages for the selected object
     this.loadFlexiPages();
-
-    // Reload Flow variables for the new object type
-    this.loadFlowVariables();
   }
 
   handleFlexiPageChange(event) {
@@ -280,19 +257,8 @@ export default class FlexipageRecordFormCPE extends LightningElement {
   }
 
   handleRecordIdChange(event) {
-    this.recordId = event.detail.value;
+    this.recordId = event.detail.newValue;
     this.dispatchConfigurationChange("recordId", this.recordId);
-    // Clear the dropdown selection when user types manually
-    this.selectedRecordIdVariable = "";
-  }
-
-  handleRecordIdVariableChange(event) {
-    this.selectedRecordIdVariable = event.detail.value;
-    if (this.selectedRecordIdVariable) {
-      // Set the record ID to just the variable name (Flow will resolve it)
-      this.recordId = this.selectedRecordIdVariable;
-      this.dispatchConfigurationChange("recordId", this.recordId);
-    }
   }
 
   handleReadOnlyChange(event) {
@@ -358,19 +324,37 @@ export default class FlexipageRecordFormCPE extends LightningElement {
   }
 
   async loadFields() {
-    if (!this.objectApiName) {
+    if (!this.objectApiName || !this.selectedFlexiPage) {
       this.fieldOptions = [];
+      this.defaultValueFields = [];
       return;
     }
 
     this.isLoadingFields = true;
     try {
-      const fields = await getObjectFields({
+      // First, get all object fields
+      const allObjectFields = await getObjectFields({
         objectApiName: this.objectApiName
       });
 
+      // Then, get fields from the FlexiPage
+      const flexiPageFieldInfo = await getFlexiPageFields({
+        developerName: this.selectedFlexiPage
+      });
+
+      // Extract field names from FlexiPage (convert to lowercase for comparison)
+      const flexiPageFieldNames = new Set(
+        flexiPageFieldInfo.map((info) => info.fieldName.toLowerCase())
+      );
+      this.flexiPageFields = flexiPageFieldInfo;
+
+      // Filter to only include fields that are on the FlexiPage
+      const fieldsOnFlexiPage = allObjectFields.filter((field) =>
+        flexiPageFieldNames.has(field.apiName.toLowerCase())
+      );
+
       // Filter out system fields that shouldn't be excluded
-      const userEditableFields = fields.filter(
+      const userEditableFields = fieldsOnFlexiPage.filter(
         (field) =>
           ![
             "Id",
@@ -393,12 +377,17 @@ export default class FlexipageRecordFormCPE extends LightningElement {
         value: field.apiName,
         type: field.type,
         defaultValue: this.defaultFieldValues[field.apiName] || "",
-        selectedVariable: "",
-        variableOptions: []
+        selectedVariable: this.defaultFieldValues[field.apiName] || ""
       }));
+
+      // Remove any excluded fields that are no longer on the FlexiPage
+      const validFieldNames = new Set(userEditableFields.map((f) => f.apiName));
+      this.excludedFields = this.excludedFields.filter((field) =>
+        validFieldNames.has(field)
+      );
     } catch (error) {
       console.error("Error loading fields:", error);
-      this.showError("Unable to load object fields");
+      this.showError("Unable to load fields from FlexiPage");
     } finally {
       this.isLoadingFields = false;
     }
@@ -409,137 +398,23 @@ export default class FlexipageRecordFormCPE extends LightningElement {
     this.showDefaultValuesModal = true;
     // Copy current values to temp storage
     this.tempDefaultValues = { ...this.defaultFieldValues };
-    // Load Flow variables
-    this.loadFlowVariables();
-    // Load field-specific variables
-    this.loadFieldVariables();
+    // Update default value fields with current values
+    this.updateDefaultValueFields();
     // Start with accordion collapsed
     this.showIndividualFields = false;
   }
 
-  loadFieldVariables() {
-    if (!this._builderContext || !this._builderContext.variables) {
-      return;
-    }
-
-    // Update each field with appropriate variable options
+  updateDefaultValueFields() {
+    // Update default value fields with current values from tempDefaultValues
     this.defaultValueFields = this.defaultValueFields.map((field) => {
-      const variableOptions = this.getVariableOptionsForFieldType(field.type);
-
-      // Check if current value is a Flow variable (no {!} syntax in CPEs)
-      let selectedVariable = "";
-      if (field.defaultValue) {
-        // Check if the value matches a variable name or variable path
-        const matchingVariable = this._builderContext.variables.find(
-          (v) =>
-            v.name === field.defaultValue ||
-            field.defaultValue.startsWith(v.name + ".")
-        );
-        if (matchingVariable) {
-          selectedVariable = field.defaultValue;
-        }
-      }
-
+      const currentValue =
+        this.tempDefaultValues[field.value] || field.defaultValue || "";
       return {
         ...field,
-        selectedVariable: selectedVariable,
-        variableOptions: variableOptions
+        defaultValue: currentValue,
+        selectedVariable: currentValue // For c-fsc_flow-combobox
       };
     });
-  }
-
-  getVariableOptionsForFieldType(fieldType) {
-    if (!this._builderContext || !this._builderContext.variables) {
-      return [];
-    }
-
-    const options = [];
-
-    // Add empty option first
-    options.push({
-      label: "-- Select a variable --",
-      value: "",
-      description: "Choose from available Flow variables"
-    });
-
-    // Filter variables based on field type
-    this._builderContext.variables.forEach((variable) => {
-      let includeVariable = false;
-      let description = "";
-
-      // Map Salesforce field types to Flow variable types
-      switch (fieldType) {
-        case "STRING":
-        case "TEXTAREA":
-        case "PHONE":
-        case "EMAIL":
-        case "URL":
-        case "PICKLIST":
-        case "MULTIPICKLIST":
-          if (variable.dataType === "String") {
-            includeVariable = true;
-            description = "Text variable";
-          }
-          break;
-        case "BOOLEAN":
-          if (variable.dataType === "Boolean") {
-            includeVariable = true;
-            description = "Boolean variable";
-          }
-          break;
-        case "INTEGER":
-        case "DOUBLE":
-        case "PERCENT":
-        case "CURRENCY":
-          if (variable.dataType === "Number") {
-            includeVariable = true;
-            description = "Number variable";
-          }
-          break;
-        case "DATE":
-          if (variable.dataType === "Date") {
-            includeVariable = true;
-            description = "Date variable";
-          }
-          break;
-        case "DATETIME":
-          if (variable.dataType === "DateTime") {
-            includeVariable = true;
-            description = "DateTime variable";
-          }
-          break;
-        case "REFERENCE":
-          if (variable.dataType === "String") {
-            includeVariable = true;
-            description = "Text variable (for ID)";
-          }
-          // Also include record variables of the same type
-          if (
-            (variable.dataType === "SObject" ||
-              variable.dataType === "Sobject") &&
-            this.objectApiName &&
-            variable.objectType === this.objectApiName
-          ) {
-            includeVariable = true;
-            description = `${variable.objectType} record`;
-          }
-          break;
-        default:
-          // No matching type - exclude variable
-          includeVariable = false;
-          break;
-      }
-
-      if (includeVariable) {
-        options.push({
-          label: variable.name,
-          value: variable.name,
-          description: description
-        });
-      }
-    });
-
-    return options;
   }
 
   toggleIndividualFields() {
@@ -547,7 +422,7 @@ export default class FlexipageRecordFormCPE extends LightningElement {
   }
 
   handleRecordVariableChange(event) {
-    this.selectedRecordVariable = event.detail.value;
+    this.selectedRecordVariable = event.detail.newValue;
 
     if (this.selectedRecordVariable) {
       // When a record variable is selected, populate all fields with the variable reference
@@ -565,7 +440,7 @@ export default class FlexipageRecordFormCPE extends LightningElement {
       // Expand the accordion to show the populated fields
       this.showIndividualFields = true;
     } else {
-      // Clear all fields when "None" is selected
+      // Clear all fields when empty value is selected
       this.defaultValueFields = this.defaultValueFields.map((field) => {
         delete this.tempDefaultValues[field.value];
         return {
@@ -610,7 +485,7 @@ export default class FlexipageRecordFormCPE extends LightningElement {
 
   handleFieldVariableChange(event) {
     const fieldName = event.target.dataset.field;
-    const selectedVariable = event.detail.value;
+    const selectedVariable = event.detail.newValue;
 
     if (selectedVariable) {
       // Set the field value to just the variable name (no {!} syntax)
@@ -628,10 +503,11 @@ export default class FlexipageRecordFormCPE extends LightningElement {
         return field;
       });
     } else {
-      // Clear the selection
+      // Clear the value when empty
+      delete this.tempDefaultValues[fieldName];
       this.defaultValueFields = this.defaultValueFields.map((field) => {
         if (field.value === fieldName) {
-          return { ...field, selectedVariable: "" };
+          return { ...field, defaultValue: "", selectedVariable: "" };
         }
         return field;
       });
@@ -651,8 +527,8 @@ export default class FlexipageRecordFormCPE extends LightningElement {
     // Copy current excluded fields to temp array
     this.tempExcludedFields = [...this.excludedFields];
 
-    // Load fields if not already loaded
-    if (this.fieldOptions.length === 0) {
+    // Load fields if not already loaded or if FlexiPage is selected
+    if (this.fieldOptions.length === 0 && this.selectedFlexiPage) {
       this.loadFields();
     }
   }
@@ -720,100 +596,6 @@ export default class FlexipageRecordFormCPE extends LightningElement {
         this.loadFlexiPages();
       }
     }
-  }
-
-  loadObjectMetadata() {
-    // Load record variables from Flow builder context
-    this.loadFlowVariables();
-  }
-
-  loadFlowVariables() {
-    if (!this._builderContext || !this._builderContext.variables) {
-      return;
-    }
-
-    // Filter for record variables of the selected object type
-    const recordVariables = this._builderContext.variables.filter(
-      (variable) => {
-        // Check if it's a record variable
-        if (
-          variable.dataType === "SObject" ||
-          variable.dataType === "Sobject"
-        ) {
-          // If we have an object selected, filter by object type
-          if (this.objectApiName) {
-            return variable.objectType === this.objectApiName;
-          }
-          return true;
-        }
-        return false;
-      }
-    );
-
-    // Map to combobox options
-    this.recordVariableOptions = recordVariables.map((variable) => ({
-      label: variable.name,
-      value: variable.name,
-      description: `${variable.objectType} record variable`
-    }));
-
-    // Add empty option at the beginning
-    this.recordVariableOptions.unshift({
-      label: "-- None --",
-      value: "",
-      description: "Manual field entry"
-    });
-
-    // Also load variables suitable for Record ID (Text variables and specific record ID references)
-    this.loadRecordIdVariables();
-  }
-
-  loadRecordIdVariables() {
-    if (!this._builderContext || !this._builderContext.variables) {
-      this.recordIdVariableOptions = [];
-      return;
-    }
-
-    // Filter for variables that can hold a record ID
-    const idVariables = this._builderContext.variables.filter((variable) => {
-      // Include Text variables
-      if (variable.dataType === "String") {
-        return true;
-      }
-      // Include record variables that we can extract ID from
-      if (
-        (variable.dataType === "SObject" || variable.dataType === "Sobject") &&
-        this.objectApiName &&
-        variable.objectType === this.objectApiName
-      ) {
-        return true;
-      }
-      return false;
-    });
-
-    // Map to combobox options
-    this.recordIdVariableOptions = idVariables.map((variable) => {
-      if (variable.dataType === "String") {
-        return {
-          label: variable.name,
-          value: variable.name,
-          description: "Text variable"
-        };
-      }
-      // For record variables, we'll reference the Id field
-      return {
-        label: variable.name,
-        value: `${variable.name}.Id`,
-        description: `${variable.objectType} record ID`
-      };
-    });
-
-    // Add empty option at the beginning
-    this.recordIdVariableOptions.unshift({
-      label: "-- Select a variable --",
-      value: "",
-      description: "Choose from available Flow variables"
-    });
   }
 
   // Load all available sObjects

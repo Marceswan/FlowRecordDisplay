@@ -72,35 +72,16 @@
 
         <!-- Record ID -->
         <div class="slds-form-element slds-m-bottom_x-small">
-          <label class="slds-form-element__label" for="record-id">
-            Record ID
-          </label>
-          <div class="slds-form-element__control">
-            <div class="slds-grid slds-gutters_x-small">
-              <div class="slds-col slds-size_1-of-1">
-                <lightning-input
-                  id="record-id"
-                  value={recordId}
-                  placeholder="Enter ID or select Flow variable"
-                  field-level-help="Enter a record ID directly or select a Flow variable"
-                  variant="label-hidden"
-                  onchange={handleRecordIdChange}
-                >
-                </lightning-input>
-              </div>
-            </div>
-            <div class="slds-m-top_x-small">
-              <lightning-combobox
-                label="Or select a Flow variable"
-                value={selectedRecordIdVariable}
-                options={recordIdVariableOptions}
-                placeholder="Select a variable"
-                variant="label-hidden"
-                onchange={handleRecordIdVariableChange}
-              >
-              </lightning-combobox>
-            </div>
-          </div>
+          <c-fsc_flow-combobox
+            name="recordId"
+            label="Record ID"
+            value={recordId}
+            builder-context={builderContext}
+            automatic-output-variables={automaticOutputVariables}
+            onvaluechanged={handleRecordIdChange}
+            field-level-help="Enter a record ID directly or select a Flow variable"
+          >
+          </c-fsc_flow-combobox>
         </div>
 
         <!-- Read Only -->
@@ -224,15 +205,16 @@
         <div class="slds-modal__content slds-p-around_medium">
           <!-- Record Variable Selector -->
           <div class="slds-m-bottom_medium">
-            <lightning-combobox
+            <c-fsc_flow-combobox
+              name="recordVariable"
               label="Select Record Variable"
               value={selectedRecordVariable}
-              options={recordVariableOptions}
-              placeholder="Choose a record variable to populate defaults"
+              builder-context={builderContext}
+              automatic-output-variables={automaticOutputVariables}
+              onvaluechanged={handleRecordVariableChange}
               field-level-help="Select a Flow record variable to automatically populate default values for all fields"
-              onchange={handleRecordVariableChange}
             >
-            </lightning-combobox>
+            </c-fsc_flow-combobox>
           </div>
 
           <!-- Accordion for Individual Field Defaults -->
@@ -281,16 +263,17 @@
                         </div>
                       </div>
                       <div class="slds-m-top_x-small">
-                        <lightning-combobox
+                        <c-fsc_flow-combobox
+                          name={field.value}
                           label="Or select a Flow variable"
                           value={field.selectedVariable}
-                          options={field.variableOptions}
-                          placeholder="Select a variable"
-                          variant="label-hidden"
+                          builder-context={builderContext}
+                          automatic-output-variables={automaticOutputVariables}
                           data-field={field.value}
-                          onchange={handleFieldVariableChange}
+                          onvaluechanged={handleFieldVariableChange}
+                          variant="label-hidden"
                         >
-                        </lightning-combobox>
+                        </c-fsc_flow-combobox>
                       </div>
                     </div>
                   </div>
