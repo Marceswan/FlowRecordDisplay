@@ -1,8 +1,8 @@
 import { LightningElement, api, track } from "lwc";
-import getAvailableFlexiPages from "@salesforce/apex/FlexiPageMetadataService.getAvailableFlexiPages";
+import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import getFlexiPageFields from "@salesforce/apex/FlexiPageMetadataService.getFlexiPageFields";
-import getObjectFields from "@salesforce/apex/FlexiPageToolingService.getObjectFields";
-import getAllSObjects from "@salesforce/apex/FlexiPageToolingService.getAllSObjects";
+import getObjectFields from "@salesforce/apex/FlexiPageMetadataService.getObjectFields";
+import getAllSObjects from "@salesforce/apex/FlexiPageMetadataService.getAllSObjects";
 
 export default class FlexipageRecordFormCPE extends LightningElement {
   // Flow Builder interfaces
@@ -12,11 +12,11 @@ export default class FlexipageRecordFormCPE extends LightningElement {
   _automaticOutputVariables = [];
 
   // UI State
-  @track isLoadingFlexiPages = false;
+  // Removed isLoadingFlexiPages since we're using direct text input
   @track isLoadingFields = false;
   @track isLoadingObjects = false;
   @track objectOptions = [];
-  @track flexiPageOptions = [];
+  // Removed flexiPageOptions since we're using direct text input
   @track fieldOptions = [];
   @track showAdvancedSettings = false;
   @track showDefaultValuesModal = false;
@@ -26,6 +26,7 @@ export default class FlexipageRecordFormCPE extends LightningElement {
   @track showIndividualFields = false;
   @track selectedRecordVariable = "";
   @track flexiPageFields = []; // Fields from the selected FlexiPage
+  @track searchTerm = ""; // Search term for filtering fields
 
   // Configuration values
   objectApiName;
@@ -97,6 +98,18 @@ export default class FlexipageRecordFormCPE extends LightningElement {
     return this.excludedFields.length;
   }
 
+  get filteredDefaultValueFields() {
+    if (!this.searchTerm) {
+      return this.defaultValueFields;
+    }
+    const searchLower = this.searchTerm.toLowerCase();
+    return this.defaultValueFields.filter(
+      (field) =>
+        field.label.toLowerCase().includes(searchLower) ||
+        field.value.toLowerCase().includes(searchLower)
+    );
+  }
+
   get individualFieldsIcon() {
     return this.showIndividualFields
       ? "utility:chevrondown"
@@ -105,6 +118,12 @@ export default class FlexipageRecordFormCPE extends LightningElement {
 
   get hideIndividualFields() {
     return !this.showIndividualFields;
+  }
+
+  get individualFieldsSectionClass() {
+    return this.showIndividualFields
+      ? "slds-expandable-section slds-is-open"
+      : "slds-expandable-section";
   }
 
   // Initialize values from existing configuration
@@ -173,21 +192,20 @@ export default class FlexipageRecordFormCPE extends LightningElement {
 
     // Load dependent data
     if (this.objectApiName) {
-      this.loadFlexiPages().then(() => {
-        if (pendingFieldLoad) {
-          this.selectedFlexiPage = pendingFieldLoad;
-          this.loadFields().then(() => {
-            if (pendingExcludedFields) {
-              this.excludedFields = pendingExcludedFields
-                .split(",")
-                .map((f) => f.trim());
-            }
-            if (pendingDefaultValues) {
-              this.parseDefaultValues(pendingDefaultValues);
-            }
-          });
-        }
-      });
+      // If we have a pending field load (from saved configuration), load the fields
+      if (pendingFieldLoad) {
+        this.selectedFlexiPage = pendingFieldLoad;
+        this.loadFields().then(() => {
+          if (pendingExcludedFields) {
+            this.excludedFields = pendingExcludedFields
+              .split(",")
+              .map((f) => f.trim());
+          }
+          if (pendingDefaultValues) {
+            this.parseDefaultValues(pendingDefaultValues);
+          }
+        });
+      }
     }
   }
 
@@ -234,8 +252,7 @@ export default class FlexipageRecordFormCPE extends LightningElement {
       })
     );
 
-    // Load FlexiPages for the selected object
-    this.loadFlexiPages();
+    // No longer loading FlexiPages since user will type the developer name directly
   }
 
   handleFlexiPageChange(event) {
@@ -279,49 +296,18 @@ export default class FlexipageRecordFormCPE extends LightningElement {
   toggleAdvancedSettings() {
     this.showAdvancedSettings = !this.showAdvancedSettings;
 
-    // Load fields if not already loaded
-    if (this.showAdvancedSettings && this.fieldOptions.length === 0) {
+    // Load fields if not already loaded and FlexiPage is selected
+    if (
+      this.showAdvancedSettings &&
+      this.fieldOptions.length === 0 &&
+      this.selectedFlexiPage
+    ) {
       this.loadFields();
     }
   }
 
   // Data loading methods
-  async loadFlexiPages() {
-    if (!this.objectApiName) {
-      this.flexiPageOptions = [];
-      return;
-    }
-
-    this.isLoadingFlexiPages = true;
-    console.log("Loading FlexiPages for object:", this.objectApiName);
-
-    try {
-      const flexiPages = await getAvailableFlexiPages({
-        objectApiName: this.objectApiName
-      });
-
-      console.log("Retrieved FlexiPages:", flexiPages);
-      console.log("FlexiPage count:", flexiPages ? flexiPages.length : 0);
-
-      this.flexiPageOptions = flexiPages.map((page) => ({
-        label: page.label || page.developerName,
-        value: page.developerName,
-        description: page.developerName
-      }));
-
-      console.log("FlexiPage options:", this.flexiPageOptions);
-    } catch (error) {
-      console.error("Error loading FlexiPages:", error);
-      console.error("Error details:", {
-        message: error.message,
-        stack: error.stack,
-        body: error.body
-      });
-      this.showError("Unable to load FlexiPage layouts");
-    } finally {
-      this.isLoadingFlexiPages = false;
-    }
-  }
+  // Removed loadFlexiPages method since we're using direct text input
 
   async loadFields() {
     if (!this.objectApiName || !this.selectedFlexiPage) {
@@ -333,24 +319,85 @@ export default class FlexipageRecordFormCPE extends LightningElement {
     this.isLoadingFields = true;
     try {
       // First, get all object fields
+      console.log("=== STARTING FIELD LOAD ===");
+      console.log("Loading fields for object:", this.objectApiName);
       const allObjectFields = await getObjectFields({
         objectApiName: this.objectApiName
       });
+      console.log(
+        "All object fields count:",
+        allObjectFields ? allObjectFields.length : 0
+      );
+      console.log(
+        "All object fields:",
+        JSON.stringify(allObjectFields, null, 2)
+      );
 
       // Then, get fields from the FlexiPage
-      const flexiPageFieldInfo = await getFlexiPageFields({
-        developerName: this.selectedFlexiPage
-      });
+      console.log("Loading FlexiPage fields for:", this.selectedFlexiPage);
+      let flexiPageFieldInfo = [];
+      try {
+        flexiPageFieldInfo = await getFlexiPageFields({
+          developerName: this.selectedFlexiPage
+        });
+        console.log(
+          "FlexiPage field info count:",
+          flexiPageFieldInfo ? flexiPageFieldInfo.length : 0
+        );
+        console.log(
+          "FlexiPage field info:",
+          JSON.stringify(flexiPageFieldInfo, null, 2)
+        );
+      } catch (flexiPageError) {
+        console.warn(
+          "Unable to load FlexiPage fields, using all object fields as fallback:",
+          flexiPageError
+        );
+        // Continue with empty flexiPageFieldInfo - will use all object fields
+      }
+
+      // Check if flexiPageFieldInfo is valid
+      if (!flexiPageFieldInfo || !Array.isArray(flexiPageFieldInfo)) {
+        console.warn(
+          "Invalid or empty FlexiPage field info, using all object fields"
+        );
+        flexiPageFieldInfo = [];
+      }
 
       // Extract field names from FlexiPage (convert to lowercase for comparison)
       const flexiPageFieldNames = new Set(
         flexiPageFieldInfo.map((info) => info.fieldName.toLowerCase())
       );
+      console.log("FlexiPage field names set size:", flexiPageFieldNames.size);
+      console.log("FlexiPage field names:", Array.from(flexiPageFieldNames));
       this.flexiPageFields = flexiPageFieldInfo;
 
-      // Filter to only include fields that are on the FlexiPage
-      const fieldsOnFlexiPage = allObjectFields.filter((field) =>
-        flexiPageFieldNames.has(field.apiName.toLowerCase())
+      // If no fields found on FlexiPage, use all object fields as fallback
+      let fieldsOnFlexiPage;
+      if (flexiPageFieldNames.size === 0) {
+        console.log(
+          "No fields found on FlexiPage, using all object fields as fallback"
+        );
+        fieldsOnFlexiPage = allObjectFields;
+      } else {
+        // Filter to only include fields that are on the FlexiPage
+        fieldsOnFlexiPage = allObjectFields.filter((field) => {
+          const isIncluded = flexiPageFieldNames.has(
+            field.apiName.toLowerCase()
+          );
+          if (!isIncluded) {
+            console.log(`Field ${field.apiName} not found in FlexiPage fields`);
+          }
+          return isIncluded;
+        });
+      }
+      console.log(
+        "Fields on FlexiPage count:",
+        fieldsOnFlexiPage ? fieldsOnFlexiPage.length : 0
+      );
+      console.log(
+        "Fields on FlexiPage:",
+        JSON.stringify(fieldsOnFlexiPage, null, 2)
       );
 
       // Filter out system fields that shouldn't be excluded
@@ -365,11 +412,24 @@ export default class FlexipageRecordFormCPE extends LightningElement {
             "SystemModstamp"
           ].includes(field.apiName)
       );
+      console.log(
+        "User editable fields count:",
+        userEditableFields ? userEditableFields.length : 0
+      );
+      console.log(
+        "User editable fields:",
+        JSON.stringify(userEditableFields, null, 2)
+      );
 
       this.fieldOptions = userEditableFields.map((field) => ({
         label: field.label,
         value: field.apiName
       }));
+      console.log("Final field options count:", this.fieldOptions.length);
+      console.log(
+        "Field options for modal:",
+        JSON.stringify(this.fieldOptions, null, 2)
+      );
 
       // Also prepare fields for default values
       this.defaultValueFields = userEditableFields.map((field) => ({
@@ -385,9 +445,12 @@ export default class FlexipageRecordFormCPE extends LightningElement {
       this.excludedFields = this.excludedFields.filter((field) =>
         validFieldNames.has(field)
       );
+
+      console.log("=== FIELD LOAD COMPLETE ===");
     } catch (error) {
       console.error("Error loading fields:", error);
-      this.showError("Unable to load fields from FlexiPage");
+      console.error("Error details:", error);
+      this.showError("Unable to load fields for the selected object");
     } finally {
       this.isLoadingFields = false;
     }
@@ -395,13 +458,29 @@ export default class FlexipageRecordFormCPE extends LightningElement {
 
   // Default values modal handlers
   openDefaultValuesModal() {
+    // Check if we have a FlexiPage selected
+    if (!this.selectedFlexiPage) {
+      this.showError("Please select a FlexiPage layout first");
+      return;
+    }
+
     this.showDefaultValuesModal = true;
     // Copy current values to temp storage
     this.tempDefaultValues = { ...this.defaultFieldValues };
-    // Update default value fields with current values
-    this.updateDefaultValueFields();
-    // Start with accordion collapsed
-    this.showIndividualFields = false;
+
+    // Load fields if not already loaded
+    if (this.defaultValueFields.length === 0 && this.selectedFlexiPage) {
+      this.loadFields().then(() => {
+        // Update default value fields with current values after loading
+        this.updateDefaultValueFields();
+      });
+    } else {
+      // Update default value fields with current values
+      this.updateDefaultValueFields();
+    }
+
+    // Start with accordion expanded
+    this.showIndividualFields = true;
   }
 
   updateDefaultValueFields() {
@@ -456,6 +535,12 @@ export default class FlexipageRecordFormCPE extends LightningElement {
     this.showDefaultValuesModal = false;
     // Reset temp values
     this.tempDefaultValues = {};
+    // Reset search term
+    this.searchTerm = "";
+  }
+
+  handleSearch(event) {
+    this.searchTerm = event.target.value;
   }
 
   handleDefaultValueChange(event) {
@@ -523,12 +608,18 @@ export default class FlexipageRecordFormCPE extends LightningElement {
 
   // Excluded fields modal handlers
   openExcludedFieldsModal() {
+    // Check if we have a FlexiPage selected
+    if (!this.selectedFlexiPage) {
+      this.showError("Please select a FlexiPage layout first");
+      return;
+    }
+
     this.showExcludedFieldsModal = true;
     // Copy current excluded fields to temp array
     this.tempExcludedFields = [...this.excludedFields];
 
-    // Load fields if not already loaded or if FlexiPage is selected
-    if (this.fieldOptions.length === 0 && this.selectedFlexiPage) {
+    // Load fields if not already loaded
+    if (this.fieldOptions.length === 0) {
       this.loadFields();
     }
   }
@@ -593,7 +684,6 @@ export default class FlexipageRecordFormCPE extends LightningElement {
         this.objectApiName = mapping.typeValue;
         // Dispatch configuration change to ensure it's saved
         this.dispatchConfigurationChange("objectApiName", this.objectApiName);
-        this.loadFlexiPages();
       }
     }
   }
@@ -623,17 +713,28 @@ export default class FlexipageRecordFormCPE extends LightningElement {
   }
 
   showError(message) {
-    // Simple error display - can be enhanced with toast notifications
+    // Log error to console
     console.error(message);
 
-    // Dispatch error event for Flow Builder
-    this.dispatchEvent(
-      new CustomEvent("configuration_editor_error", {
-        bubbles: true,
-        composed: true,
-        detail: { message }
-      })
-    );
+    // Show toast notification if available
+    try {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "Error",
+          message: message,
+          variant: "error"
+        })
+      );
+    } catch {
+      // If toast is not available (e.g., in Flow Builder), use custom event
+      this.dispatchEvent(
+        new CustomEvent("configuration_editor_error", {
+          bubbles: true,
+          composed: true,
+          detail: { message }
+        })
+      );
+    }
   }
 
   // Validation method for Flow Builder

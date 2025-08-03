@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">
+    <labels>
+        <fullName>fsc_Manual_Reference_Allowed</fullName>
+        <language>en_US</language>
+        <protected>false</protected>
+        <shortDescription>Manual Reference Allowed</shortDescription>
+        <value
+    >Manual reference allowed - you can type {!variableName} directly</value>
+    </labels>
+</CustomLabels>

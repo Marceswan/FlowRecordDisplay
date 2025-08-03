@@ -3,6 +3,64 @@ export function parseFlexiPageJson(flexiPageJson) {
 
   console.log("Starting to parse flexiPageJson:", flexiPageJson);
 
+  // Check if this is a simple region-based layout (no sections/columns)
+  const hasSimpleLayout = flexiPageJson.flexiPageRegions.some(
+    (region) =>
+      region.type === "Region" &&
+      region.itemInstances.some((item) => item.fieldInstance)
+  );
+
+  if (hasSimpleLayout) {
+    console.log("Detected simple layout - processing direct field instances");
+
+    // For simple layouts, create a default section
+    const defaultSectionId = "defaultSection";
+    sections[defaultSectionId] = {
+      label: "Information",
+      columns: {
+        defaultColumn: {
+          side: "left",
+          fields: {}
+        }
+      }
+    };
+
+    // Process all regions
+    flexiPageJson.flexiPageRegions.forEach((region) => {
+      if (region.type === "Region" && region.itemInstances) {
+        region.itemInstances.forEach((item, index) => {
+          if (item.fieldInstance) {
+            const fieldApiName = item.fieldInstance.fieldItem.replace(
+              "Record.",
+              ""
+            );
+            sections[defaultSectionId].columns.defaultColumn.fields[
+              fieldApiName
+            ] = {
+              value:
+                item.fieldInstance?.fieldInstanceProperties?.find(
+                  (prop) => prop.name === "value"
+                )?.value || "",
+              isVisible: true,
+              isRequired: false,
+              isReadOnly: false,
+              visibilityRule: null,
+              conditionalFormatRuleset: null,
+              order: index
+            };
+            console.log(`Added field: ${fieldApiName}`);
+          }
+        });
+      }
+    });
+
+    console.log("Parsed Sections:", JSON.stringify(sections, null, 2));
+    return sections;
+  }
+
+  // Original parsing logic for complex layouts
+  console.log("Processing complex layout with sections and columns");
+
   // First pass: Collect sections and their labels
   flexiPageJson.flexiPageRegions.forEach((region) => {
     region.itemInstances.forEach((itemInstance) => {

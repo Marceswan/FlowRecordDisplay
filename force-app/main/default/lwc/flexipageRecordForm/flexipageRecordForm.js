@@ -114,8 +114,35 @@ export default class FlexipageRecordForm extends NavigationMixin(
   fieldApiNamesForWire = []; // Fields to fetch via wire
   iconFormatCache = {}; // Cache for icon formatting rules
 
+  // Error handling properties
+  get errorMessage() {
+    if (this.error) {
+      // Check various error message formats
+      return (
+        this.error.body?.message ||
+        this.error.body?.error ||
+        this.error.message ||
+        "An unexpected error occurred"
+      );
+    }
+    return "";
+  }
+
+  get fullErrorDetails() {
+    if (this.error) {
+      return JSON.stringify(this.error, null, 2);
+    }
+    return "";
+  }
+
   connectedCallback() {
     console.log("Starting connectedCallback");
+    console.log("FlexiPage Name:", this.flexiPageName);
+    console.log("Object API Name:", this.objectApiName);
+    console.log("Record ID:", this._recordId);
+
+    // Set loading state at the start
+    this.isLoading = true;
 
     const { original: defaultValues, lowercase: lookupValues } =
       this.parseDefaultValues();
@@ -140,12 +167,27 @@ export default class FlexipageRecordForm extends NavigationMixin(
         .then(async (result) => {
           try {
             console.log("FlexiPage metadata received");
-            this.config = JSON.parse(result);
+            // Parse the result if it's a string
+            const parsedResult =
+              typeof result === "string" ? JSON.parse(result) : result;
+
+            // Check if the result indicates an error
+            if (parsedResult.success === false) {
+              console.error("FlexiPage retrieval failed:", parsedResult);
+              this.error = {
+                body: {
+                  message: parsedResult.error
+                }
+              };
+              this.isLoading = false;
+              return;
+            }
+
+            this.config = parsedResult;
 
             // Extract metadata from the response
             let parsedSections = parseFlexiPageJson(
-              this.config.metadata || this.config,
-              this.recordData
+              this.config.metadata || this.config
             );
             parsedSections = this.removeExcludedFields(parsedSections);
             this.sections = await this.processSections(parsedSections);
@@ -158,11 +200,13 @@ export default class FlexipageRecordForm extends NavigationMixin(
           } catch (e) {
             console.error("Error processing FlexiPage config:", e);
             this.error = e;
+            this.isLoading = false;
           }
         })
         .catch((error) => {
           console.error("Error loading FlexiPage metadata:", error);
           this.error = error;
+          this.isLoading = false;
         });
     } else {
       console.log("Loading existing record configuration");
@@ -197,19 +241,43 @@ export default class FlexipageRecordForm extends NavigationMixin(
 
     getFlexiPageMetadata({ developerName: this.flexiPageName })
       .then((result) => {
-        console.log("FlexiPage config loaded:", result);
+        console.log("FlexiPage config loaded - RAW RESULT:");
+        console.log(JSON.stringify(result, null, 2));
         try {
-          this.config = JSON.parse(result); // Parse the FlexiPage configuration JSON
+          // Parse the result if it's a string
+          const parsedResult =
+            typeof result === "string" ? JSON.parse(result) : result;
+          console.log("Parsed result:");
+          console.log(JSON.stringify(parsedResult, null, 2));
+
+          // Check if the result indicates an error
+          if (parsedResult.success === false) {
+            console.error("FlexiPage retrieval failed:", parsedResult);
+            this.error = {
+              body: {
+                message: parsedResult.error
+              }
+            };
+            this.isLoading = false;
+            return;
+          }
+
+          // Result is successful, store the config
+          this.config = parsedResult;
+          console.log("Config metadata structure:");
+          console.log(JSON.stringify(this.config.metadata, null, 2));
           this.fetchFieldValues(); // Fetch the field values
         } catch (e) {
-          console.error("Error parsing JSON:", e);
-          console.error("Received JSON:", result);
+          console.error("Error processing FlexiPage config:", e);
+          console.error("Received config:", result);
           this.error = e; // Store the error
+          this.isLoading = false;
         }
       })
       .catch((error) => {
         console.error("Error loading flexipage config:", error);
         this.error = error; // Store the error
+        this.isLoading = false;
       });
   }
 
@@ -259,10 +327,15 @@ export default class FlexipageRecordForm extends NavigationMixin(
     console.log("RecordId:", this._recordId);
 
     // First, parse the FlexiPage to get all fields
-    let parsedSections = parseFlexiPageJson(
-      this.config.metadata || this.config,
-      {}
-    );
+    // The config has a metadata property that contains the actual FlexiPage data
+    const flexiPageData = this.config.metadata;
+    console.log("FlexiPage data being parsed:");
+    console.log(JSON.stringify(flexiPageData, null, 2));
+
+    let parsedSections = parseFlexiPageJson(flexiPageData);
+    console.log("Parsed sections result:");
+    console.log(JSON.stringify(parsedSections, null, 2));
+
     this.fields = this.collectFields(parsedSections);
     console.log("Collected fields from FlexiPage:", this.fields);
 
@@ -282,10 +355,9 @@ export default class FlexipageRecordForm extends NavigationMixin(
   async processFieldData() {
     console.log("==== Starting section processing ====");
     // Force complete re-render by creating new sections array
-    let parsedSections = parseFlexiPageJson(
-      this.config.metadata || this.config,
-      this.recordData
-    );
+    // The config has a metadata property that contains the actual FlexiPage data
+    const flexiPageData = this.config.metadata;
+    let parsedSections = parseFlexiPageJson(flexiPageData);
 
     console.log("==== Applying default values ====");
     this.applyDefaultValues(parsedSections);
@@ -816,20 +888,28 @@ export default class FlexipageRecordForm extends NavigationMixin(
 
   async processSections(parsedSections) {
     console.log("Processing sections with updated data");
+    console.log("Parsed sections:", JSON.stringify(parsedSections));
 
     const sectionsPromises = Object.keys(parsedSections).map(
       async (sectionFacetId) => {
         const section = parsedSections[sectionFacetId];
+        console.log(`Processing section: ${sectionFacetId}`, section);
 
         // Process columns, only caring about visibility
         const columnsPromises = Object.keys(section.columns).map(
           async (columnId) => {
             const column = section.columns[columnId];
+            console.log(`Processing column: ${columnId}`, column);
 
             // Only include visible fields and blank spaces
             const visibleFields = Object.entries(column.fields)
               .filter(([, field]) => field.isVisible)
               .sort((a, b) => (a[1].order || 0) - (b[1].order || 0)); // Sort by order to maintain position
+
+            console.log(
+              `Visible fields for column ${columnId}:`,
+              visibleFields
+            );
 
             // Build enhanced field data with metadata
             const enhancedFieldsPromises = visibleFields.map(
@@ -1097,7 +1177,32 @@ export default class FlexipageRecordForm extends NavigationMixin(
   get isDataAvailable() {
     // This getter returns a boolean indicating whether there are any sections available for rendering
     console.log("isDataAvailable called");
-    return this.sections.length > 0;
+
+    // If there's an error, data is not available
+    if (this.error) {
+      console.log("Error present, data not available");
+      return false;
+    }
+
+    console.log("Sections length:", this.sections.length);
+    console.log("Sections data:", JSON.stringify(this.sections));
+
+    // Check if sections have actual fields
+    let hasFields = false;
+    if (this.sections.length > 0) {
+      this.sections.forEach((section) => {
+        console.log("Section:", section.sectionName);
+        section.columns.forEach((column) => {
+          console.log("  Column enhancedFields:", column.enhancedFields);
+          if (column.enhancedFields && column.enhancedFields.length > 0) {
+            hasFields = true;
+          }
+        });
+      });
+    }
+
+    console.log("Has fields:", hasFields);
+    return this.sections.length > 0 && hasFields;
   }
 
   get sectionsWithKey() {

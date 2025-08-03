@@ -1,3 +1,10 @@
+<!--
+  @description       : 
+  @author            : ChangeMeIn@UserSettingsUnder.SFDoc
+  @group             : 
+  @last modified on  : 08-02-2025
+  @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
+-->
 <template>
   <div class="slds-form slds-form_stacked">
     <div class="slds-p-around_small">
@@ -19,28 +26,17 @@
       </lightning-combobox>
 
       <!-- FlexiPage Selection -->
-      <lightning-combobox
-        label="FlexiPage Layout"
+      <lightning-input
+        label="FlexiPage Developer Name"
         value={selectedFlexiPage}
-        options={flexiPageOptions}
-        placeholder="Select a FlexiPage"
-        field-level-help="Select the FlexiPage layout to use for this record"
+        placeholder="Enter FlexiPage developer name (e.g., Account_Record_Page)"
+        field-level-help="Enter the developer name of the FlexiPage layout to use for this record"
         required
         disabled={isFlexiPageDisabled}
         onchange={handleFlexiPageChange}
         class="slds-m-bottom_small"
       >
-      </lightning-combobox>
-
-      <!-- Loading indicator for FlexiPages -->
-      <template if:true={isLoadingFlexiPages}>
-        <div class="slds-m-bottom_small">
-          <lightning-spinner
-            alternative-text="Loading FlexiPages"
-            size="small"
-          ></lightning-spinner>
-        </div>
-      </template>
+      </lightning-input>
 
       <!-- Basic Settings -->
       <div class="slds-box slds-m-bottom_small">
@@ -202,9 +198,9 @@
           </button>
           <h2 class="slds-modal__title">Configure Default Values</h2>
         </header>
-        <div class="slds-modal__content">
+        <div class="slds-modal__content slds-p-around_medium">
           <!-- Record Variable Selector -->
-          <div class="slds-m-bottom_small">
+          <div class="slds-m-bottom_medium">
             <c-fsc_flow-combobox
               name="recordVariable"
               label="Select Record Variable"
@@ -218,7 +214,7 @@
           </div>
 
           <!-- Accordion for Individual Field Defaults -->
-          <div class="slds-section slds-is-open">
+          <div class={individualFieldsSectionClass}>
             <h3 class="slds-section__title">
               <button
                 aria-controls="individual-fields-section"
@@ -226,11 +222,14 @@
                 class="slds-button slds-section__title-action"
                 onclick={toggleIndividualFields}
               >
-                <lightning-icon
-                  icon-name={individualFieldsIcon}
-                  size="x-small"
-                  class="slds-section__title-action-icon slds-button__icon_left"
-                ></lightning-icon>
+                <svg
+                  class="slds-section__title-action-icon slds-button__icon slds-button__icon_left"
+                  aria-hidden="true"
+                >
+                  <use
+                    xlink:href="/_slds/icons/utility-sprite/svg/symbols.svg#switch"
+                  ></use>
+                </svg>
                 <span class="slds-truncate" title="Individual Field Defaults">
                   Individual Field Defaults
                 </span>
@@ -241,7 +240,38 @@
               class="slds-section__content"
               id="individual-fields-section"
             >
-              <template for:each={defaultValueFields} for:item="field">
+              <!-- Search Box -->
+              <div class="slds-m-bottom_small">
+                <div class="slds-form-element">
+                  <label
+                    class="slds-form-element__label slds-assistive-text"
+                    for="field-search"
+                  >
+                    Search Fields
+                  </label>
+                  <div
+                    class="slds-form-element__control slds-input-has-icon slds-input-has-icon_left"
+                  >
+                    <svg
+                      class="slds-icon slds-input__icon slds-input__icon_left slds-icon-text-default"
+                      aria-hidden="true"
+                    >
+                      <use
+                        xlink:href="/_slds/icons/utility-sprite/svg/symbols.svg#search"
+                      ></use>
+                    </svg>
+                    <input
+                      type="search"
+                      id="field-search"
+                      class="slds-input"
+                      placeholder="Search fields..."
+                      value={searchTerm}
+                      onkeyup={handleSearch}
+                    />
+                  </div>
+                </div>
+              </div>
+              <template for:each={filteredDefaultValueFields} for:item="field">
                 <div key={field.value} class="slds-m-bottom_small">
                   <div class="slds-form-element">
                     <label class="slds-form-element__label" for={field.value}>
@@ -320,8 +350,8 @@
           <h2 class="slds-modal__title">Configure Excluded Fields</h2>
         </header>
         <div
-          class="slds-modal__content slds-p-around_medium"
-          style="height: 500px"
+          class="slds-modal__content"
+          style="min-height: 300px; max-height: 60vh; overflow-y: auto"
         >
           <lightning-dual-listbox
             label="Select Fields to Exclude"
